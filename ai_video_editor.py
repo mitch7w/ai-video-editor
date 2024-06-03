@@ -42,17 +42,19 @@ for idx, video_file in enumerate(video_files):
 
     # Create a single string with filenames and their corresponding transcriptions
     transcription_strings = ""
+    transcription_words = []
     for each in transcriptions:
         transcription_strings += each['video']
         transcription_strings += ": "
         transcription_strings += each['transcription_object'].text
+        transcription_words.append(each['transcription_object'].words)
         transcription_strings += ", "
 
 print("transcription_strings: ", transcription_strings)
 
 # now actually perform editing process with GPT-4o
 
-system_prompt = ''' You are an expert video editor who is given the transcriptions of video files and then returns a json object of which transcriptions of which video to stitch together in what order. Please combine videos by extracting the exact words you want in the edited version from the transcriptions. Do not add words - only use those given to you alongside their origin video. Edit out repeated sentences and false starts so the video is concise and follows a natural script. For example an output could be:
+system_prompt = ''' You are an expert video editor who is given the transcriptions of video files and then returns a json object of which transcriptions of which video to stitch together in what order. Please combine videos by extracting the exact words you want in the edited version from the transcriptions. Do not add words - only use those given to you alongside their origin video. Edit out repeated sentences and false starts so the video is concise and follows a natural script. If the speaker says the same sentence twice please rather just extract the second one as it is probably more correct. For example an output could be:
     {
     desired_transcription: "Hey what's up it is Tuesday afternoon. I am working on a new version of my website this week. And that's why I am so excited about this new project.",
     transcription_sources: [{'file': 'input1.mp4', 'text': 'Hey what's up it is Tuesday afternoon.'},
@@ -81,18 +83,19 @@ print("Edited transcription sources: ", edited_transcription_sources)
 
 
 # second GPT prompt
-system_prompt_2 = ''' You are an expert video editor who is given the transcriptions of extracts of video files and the start end time of various words in an original video clip and then returns a json object of which start and end times of the original video to combine to achieve the edited video. Please extract the start and end time for each given file from the passed in transcript, matching the words exactly. The end time must obviously come after the start time for each clip. For example an output could be:
+system_prompt_2 = ''' You are an expert video editor who is given the transcriptions of extracts of video files and the start end time of various words in an original video clip and then returns a json object of which start and end times of the original video to combine to achieve the edited video. Please extract the start and end time for each given file from the passed in transcript, matching the words and start and end times of the correct words exactly. The end time must obviously come after the start time for each clip. Do not cut off words or start in the middle of a sentence by inspecting the words array and making sure the correct start and end times for words are used. Do not cut off sentences in the middle without finishing a thought. Go back and use extra computation to read through the script again and ensure there are full sentences in your transcription and associated start and end times. For example an output could be:
     {
     desired_transcription: "Hey what's up it is Tuesday afternoon. I am working on a new version of my website this week. And that's why I am so excited about this new project.",
-    transcription_times: [{'file': 'input1.mp4', 'start': 1.2345322, 'end': 4.238438},
-    {'file': 'input2.mp4', 'start': 9.4723769, 'end': 14.36824864},
+    transcription_times: [{'file': 'input1.mp4', 'start': 1.2345322, 'end': 14.238438},
+    {'file': 'input2.mp4', 'start': 9.4723769, 'end': 12.36824864},
     {'file': 'input1.mp4', 'start': 27.3444331, 'end': 35.3961112}
     }
 '''
 
 user_prompt = 'Here is the original transcriptions: ' + \
-    str(transcriptions) + \
-    " and here is the desired edited transcription outputs: " + gpt_response_1
+    str(transcription_words) + \
+    " and here is the desired edited transcription outputs: " + \
+    str(edited_transcription_sources)
 
 response_2 = client.chat.completions.create(
     model="gpt-4o",
@@ -110,6 +113,7 @@ editing_instructions = edited_times_json['transcription_times']
 
 # editing_instructions = []
 
+# TODO match text to times more closely
 
 # # find all transcription sources' time codes
 # for clip in edited_transcription_sources:
