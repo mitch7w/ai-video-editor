@@ -4,7 +4,6 @@ from openai import OpenAI
 import os
 import ffmpeg
 import json
-import anthropic
 
 load_dotenv()
 client = OpenAI()
@@ -12,7 +11,7 @@ client = OpenAI()
 
 # Define the input video files
 video_files = [
-    'C1463.mp4', 'C1464.mp4', 'C1465.mp4'
+    'mitch1.mp4', 'mitch2.mp4', 'mitch3.mp4'
     # Add more video files as needed
 ]
 
@@ -76,22 +75,28 @@ An example output might be:
 '''
 
 messages_history = []
-messages_history.append({"content": str(simplified_words), "role": "user"})
+# Add the system prompt first for OpenAI
+messages_history.append({"role": "system", "content": system_prompt})
+# Then add the user message with the transcript data
+messages_history.append({"role": "user", "content": str(simplified_words)})
 
 try:
-    # Anthropic API
-    text_completion = anthropic.Anthropic().messages.create(
-        model="claude-3-5-sonnet-20240620",
-        max_tokens=2048,
-        system=system_prompt,
-        messages=messages_history
+    # OpenAI API Call
+    completion = client.chat.completions.create(
+        model="o3-mini",
+        messages=messages_history,
+        # Request JSON output if supported by the model version
+        response_format={"type": "json_object"}
     )
-    response = text_completion.content[0].text
+    # Extract the response content
+    response = completion.choices[0].message.content
     print("response: ", response)
-except Exception as err:
-    print(err)
 
-# print("Claude Response:", response)
+except Exception as err:
+    print(f"An error occurred with the OpenAI API call: {err}")
+
+# print("OpenAI Response:", response) # Keep or remove this debugging line as needed
+# Assuming the response is valid JSON as requested in the system prompt
 edited_transcript_json = json.loads(response)
 edited_script = edited_transcript_json['desired_transcription']
 edited_transcription_sources = edited_transcript_json['transcription_sources']
